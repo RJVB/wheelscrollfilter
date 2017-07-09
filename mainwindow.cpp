@@ -53,16 +53,74 @@
 #include <QStatusBar>
 #include <QTextEdit>
 #include <QTreeView>
+#include <QHeaderView>
 
 #include <QFileInfo>
 #include <QItemSelectionModel>
 #include <QMimeDatabase>
 #include <QMimeType>
 
+#include <QDebug>
+
+QMimeTreeView::QMimeTreeView(QWidget *parent)
+    : QTreeView(parent)
+{
+    setIndentation(10);
+
+    setDragEnabled(true);
+    setDragDropMode(QAbstractItemView::InternalMove);
+    setAutoScroll(true);
+    setAutoExpandDelay(300);
+
+    setTextElideMode(Qt::ElideNone);
+
+    // for getting a horizontal scrollbar:
+    header()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    header()->setStretchLastSection(false);
+
+    viewport()->installEventFilter(this);
+}
+
+QMimeTreeView::~QMimeTreeView()
+{
+}
+
+bool QMimeTreeView::eventFilter(QObject *object, QEvent *event)
+{
+    if (event->type() == QEvent::Wheel) {
+        QWheelEvent *e = static_cast<QWheelEvent*>(event);
+        if ((abs(e->pixelDelta().x()) > 2 || abs(e->angleDelta().x()) > 2)
+#ifdef Q_OS_MACOS0
+            // allow horizontal scrolling controlled by a physical mouse wheel
+            && e->source() != Qt::MouseEventNotSynthesized
+#endif
+        ){
+            QPoint pixelDelta(e->pixelDelta()), angleDelta(e->angleDelta());
+            pixelDelta.setX(0);
+            angleDelta.setX(0);
+            // discard the original event
+            e->ignore();
+            QWheelEvent filtered(e->posF(), e->globalPosF(), pixelDelta, angleDelta,
+                e->delta(), Qt::Orientation::Vertical, e->buttons(),
+                e->modifiers(), e->phase(), e->source(), e->inverted());
+            qWarning() << e << e->source() << "for" << object
+                << "replaced with" << &filtered;
+            QCoreApplication::sendEvent(object, &filtered);
+            return true;
+        }
+    }
+    return QTreeView::eventFilter(object, event);
+}
+
+void QMimeTreeView::resizeEvent(QResizeEvent* event)
+{
+    header()->setMinimumSectionSize(viewport()->width());
+    QTreeView::resizeEvent(event);
+}
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , m_model(new MimetypeModel(this))
-    , m_treeView(new QTreeView)
     , m_detailsText(new QTextEdit)
     , m_findIndex(0)
 {
@@ -89,7 +147,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     QSplitter *centralSplitter = new QSplitter;
     setCentralWidget(centralSplitter);
-    m_treeView = new QTreeView;
+    m_treeView = new QMimeTreeView;
     m_treeView->setUniformRowHeights(true);
     m_treeView->setModel(m_model);
 

@@ -43,12 +43,24 @@
 
 #include <QMainWindow>
 #include <QModelIndexList>
+#include <QTreeView>
 
 QT_FORWARD_DECLARE_CLASS(QAction)
 QT_FORWARD_DECLARE_CLASS(QTextEdit)
-QT_FORWARD_DECLARE_CLASS(QTreeView)
 
 class MimetypeModel;
+
+class QMimeTreeView : public QTreeView
+{
+    Q_OBJECT
+public:
+    explicit QMimeTreeView(QWidget *parent = nullptr);
+    ~QMimeTreeView() override;
+
+protected:
+    bool eventFilter(QObject*, QEvent*) override;
+    void resizeEvent(QResizeEvent*) override;
+};
 
 class MainWindow : public QMainWindow
 {
@@ -68,7 +80,7 @@ private:
     void updateFindActions();
 
     MimetypeModel *m_model;
-    QTreeView *m_treeView;
+    QMimeTreeView *m_treeView;
     QTextEdit *m_detailsText;
     QAction *m_findNextAction;
     QAction *m_findPreviousAction;
