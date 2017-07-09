@@ -102,12 +102,14 @@ bool QMimeTreeView::eventFilter(QObject *object, QEvent *event)
             e->ignore();
             QWheelEvent filtered(e->posF(), e->globalPosF(), pixelDelta, angleDelta,
                 e->delta(), Qt::Orientation::Vertical, e->buttons(),
-                e->modifiers(), e->phase(), e->source(), e->inverted());
+                e->modifiers(), e->phase(), Qt::MouseEventSynthesizedByApplication, e->inverted());
             qWarning() << e << e->source() << "for" << object
                 << "replaced with" << &filtered;
-            QCoreApplication::sendEvent(object, &filtered);
+//            QCoreApplication::sendEvent(object, &filtered);
             return true;
-        }
+		} else if (e->source() == Qt::MouseEventSynthesizedByApplication){
+			qWarning() << "Handling" << e << e->delta() << e->orientation() << "for" << object;
+		}
     }
     return QTreeView::eventFilter(object, event);
 }
