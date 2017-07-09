@@ -60,6 +60,9 @@ public:
 protected:
     bool eventFilter(QObject*, QEvent*) override;
     void resizeEvent(QResizeEvent*) override;
+    void wheelEvent(QWheelEvent*) override;
+private:
+    bool isCocoa;
 };
 
 class MainWindow : public QMainWindow

@@ -54,6 +54,7 @@
 #include <QTextEdit>
 #include <QTreeView>
 #include <QHeaderView>
+#include <QScrollBar>
 
 #include <QFileInfo>
 #include <QItemSelectionModel>
@@ -64,6 +65,7 @@
 
 QMimeTreeView::QMimeTreeView(QWidget *parent)
     : QTreeView(parent)
+    , isCocoa(QGuiApplication::platformName() == QStringLiteral("cocoa"))
 {
     setIndentation(10);
 
@@ -78,7 +80,8 @@ QMimeTreeView::QMimeTreeView(QWidget *parent)
     header()->setSectionResizeMode(QHeaderView::ResizeToContents);
     header()->setStretchLastSection(false);
 
-    viewport()->installEventFilter(this);
+// filtering out horizontal wheel scrolling can also be achieved via the viewport()
+//     viewport()->installEventFilter(this);
 }
 
 QMimeTreeView::~QMimeTreeView()
@@ -87,31 +90,57 @@ QMimeTreeView::~QMimeTreeView()
 
 bool QMimeTreeView::eventFilter(QObject *object, QEvent *event)
 {
-    if (event->type() == QEvent::Wheel) {
-        QWheelEvent *e = static_cast<QWheelEvent*>(event);
-        if ((abs(e->pixelDelta().x()) > 2 || abs(e->angleDelta().x()) > 2)
-#ifdef Q_OS_MACOS0
-            // allow horizontal scrolling controlled by a physical mouse wheel
-            && e->source() != Qt::MouseEventNotSynthesized
+    switch (event->type()) {
+        case QEvent::Wheel: {
+            QWheelEvent *e = static_cast<QWheelEvent*>(event);
+            if ((e->pixelDelta().x() !=0 || e->angleDelta().x()!= 0
+                || e->orientation() == Qt::Orientation::Horizontal)
+#ifdef Q_OS_MACOS
+                // Cocoa: allow horizontal scrolling controlled by a physical mouse wheel
+                && (!isCocoa || e->source() != Qt::MouseEventNotSynthesized)
 #endif
-        ){
-            QPoint pixelDelta(e->pixelDelta()), angleDelta(e->angleDelta());
-            pixelDelta.setX(0);
-            angleDelta.setX(0);
-            // discard the original event
-            e->ignore();
+            ){
+                QPoint pixelDelta(e->pixelDelta()), angleDelta(e->angleDelta());
+                pixelDelta.setX(0);
+                angleDelta.setX(0);
+                // discard the original event
+                e->ignore();
+                if (!pixelDelta.isNull() || !angleDelta.isNull()) {
+                    QWheelEvent filtered(e->posF(), e->globalPosF(), pixelDelta, angleDelta,
+                        e->delta(), Qt::Orientation::Vertical, e->buttons(),
+                        e->modifiers(), e->phase(), Qt::MouseEventSynthesizedByApplication, e->inverted());
+                    QCoreApplication::sendEvent(object, &filtered);
+                }
+                return true;
+            }
+            break;
+        }
+    }
+    return QTreeView::eventFilter(object, event);
+}
+
+void QMimeTreeView::wheelEvent(QWheelEvent *e)
+{
+    if ((e->pixelDelta().x() !=0 || e->angleDelta().x()!= 0
+        || e->orientation() == Qt::Orientation::Horizontal)
+#ifdef Q_OS_MACOS
+        // Cocoa: allow horizontal scrolling controlled by a physical mouse wheel
+        && (!isCocoa || e->source() != Qt::MouseEventNotSynthesized)
+#endif
+    ){
+        QPoint pixelDelta(e->pixelDelta()), angleDelta(e->angleDelta());
+        pixelDelta.setX(0);
+        angleDelta.setX(0);
+        // discard the original event
+        e->ignore();
+        if (!pixelDelta.isNull() || !angleDelta.isNull()) {
             QWheelEvent filtered(e->posF(), e->globalPosF(), pixelDelta, angleDelta,
                 e->delta(), Qt::Orientation::Vertical, e->buttons(),
                 e->modifiers(), e->phase(), Qt::MouseEventSynthesizedByApplication, e->inverted());
-            qWarning() << e << e->source() << "for" << object
-                << "replaced with" << &filtered;
-//            QCoreApplication::sendEvent(object, &filtered);
-            return true;
-		} else if (e->source() == Qt::MouseEventSynthesizedByApplication){
-			qWarning() << "Handling" << e << e->delta() << e->orientation() << "for" << object;
-		}
+            QCoreApplication::sendEvent(this, &filtered);
+        }
     }
-    return QTreeView::eventFilter(object, event);
+    QTreeView::wheelEvent(e);
 }
 
 void QMimeTreeView::resizeEvent(QResizeEvent* event)
